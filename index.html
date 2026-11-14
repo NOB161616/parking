@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>駐車場 空き状況</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #E9EDF1;
+    --ink: #1C2633;
+    --muted: #5B6675;
+    --panel: #18263B;
+    --panel-edge: #2A3B55;
+    --lamp-on: #34C759;
+    --lamp-full: #E8402F;
+    --lamp-off: #3A4A62;
+    --asphalt: #3B4350;
+    --line: #F2F4F7;
+    --slot-taken: #556070;
+    --button: #18263B;
+    --button-ink: #FFFFFF;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0F1724;
+      --ink: #E6EBF2;
+      --muted: #9AA6B6;
+      --panel: #1B2A41;
+      --panel-edge: #33476A;
+      --lamp-off: #2C3B52;
+      --asphalt: #2A313C;
+      --line: #C9D0DA;
+      --slot-taken: #46505F;
+      --button: #E6EBF2;
+      --button-ink: #0F1724;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html { height: 100%; }
+  body {
+    min-height: 100%;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+    line-height: 1.7;
+    padding: calc(env(safe-area-inset-top, 0px) + 28px) 20px calc(env(safe-area-inset-bottom, 0px) + 32px);
+  }
+  main { max-width: 420px; margin: 0 auto; text-align: center; }
+  .lot-name { font-size: 1.05rem; font-weight: 700; color: var(--muted); }
+
+  /* 看板パネル：「空／満」表示灯 */
+  .sign {
+    margin: 16px 0 20px;
+    background: var(--panel);
+    border: 3px solid var(--panel-edge);
+    border-radius: 18px;
+    padding: 24px 20px 20px;
+    color: #FFFFFF;
+  }
+  .lamps { display: flex; justify-content: center; gap: 16px; }
+  .lamp {
+    width: 104px; height: 104px;
+    border-radius: 14px;
+    display: grid; place-items: center;
+    font-size: 4.4rem; font-weight: 900; line-height: 1;
+    background: var(--lamp-off);
+    color: rgba(255,255,255,.18);
+    transition: background .4s, color .4s, box-shadow .4s;
+  }
+  .state-available .lamp-a { background: var(--lamp-on); color: #FFF; box-shadow: 0 0 28px rgba(52,199,89,.55); }
+  .state-full .lamp-f { background: var(--lamp-full); color: #FFF; box-shadow: 0 0 28px rgba(232,64,47,.55); }
+  .count { margin-top: 16px; font-size: 1.1rem; font-weight: 700; }
+  .count strong { font-size: 2rem; font-weight: 900; margin: 0 4px; }
+  .count small { display: block; font-size: .9rem; font-weight: 400; opacity: .75; }
+
+  /* 区画図 */
+  .lot {
+    background: var(--asphalt);
+    border-radius: 10px;
+    padding: 14px 12px 10px;
+    margin-bottom: 8px;
+  }
+  .lot-grid {
+    display: grid;
+    grid-template-columns: 1fr 56px 1fr;
+    grid-auto-rows: 44px;
+    row-gap: 0;
+  }
+  .slot {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 10px;
+    border-top: 2px solid var(--line);
+    color: #FFFFFF;
+    font-size: .85rem;
+  }
+  .slot.last { border-bottom: 2px solid var(--line); }
+  .slot.left { border-left: 2px solid var(--line); }
+  .slot.right { border-right: 2px solid var(--line); flex-direction: row-reverse; }
+  .slot .no { font-weight: 900; font-size: 1.05rem; }
+  .slot.taken { background: var(--slot-taken); opacity: .85; }
+  .slot.free { background: var(--lamp-on); color: #FFFFFF; font-weight: 700; }
+  .slot.free .st { font-weight: 900; }
+  .aisle { grid-row: 1 / span 8; grid-column: 2; position: relative; }
+  .aisle::after {
+    content: ""; position: absolute; left: 50%; top: 8px; bottom: 8px;
+    border-left: 2px dashed rgba(255,255,255,.35);
+  }
+  .front {
+    margin-top: 8px; color: #FFFFFF; font-size: .85rem; font-weight: 700;
+    border-top: 3px solid var(--line); padding-top: 4px;
+  }
+  .legend { display: flex; justify-content: center; gap: 16px; font-size: .85rem; color: var(--muted); margin-bottom: 18px; }
+  .legend span::before {
+    content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 2px;
+    margin-right: 6px; vertical-align: -1px;
+  }
+  .legend .lg-free::before { background: var(--lamp-on); }
+  .legend .lg-taken::before { background: var(--slot-taken); }
+
+  .notice {
+    font-size: 1rem; text-align: left;
+    padding: 12px 16px; margin-bottom: 16px;
+    border-left: 4px solid var(--panel-edge);
+    background: rgba(127,140,160,.12);
+    border-radius: 4px;
+  }
+  .notice:empty { display: none; }
+  .updated { font-size: .9rem; color: var(--muted); margin-bottom: 24px; }
+  .call {
+    display: block; background: var(--button); color: var(--button-ink);
+    text-decoration: none; font-weight: 700; font-size: 1.1rem;
+    padding: 16px; border-radius: 12px;
+  }
+  .call:focus-visible, .map:focus-visible { outline: 3px solid var(--lamp-on); outline-offset: 3px; }
+  .map { display: inline-block; margin-top: 14px; color: var(--ink); font-size: .95rem; }
+  @media (prefers-reduced-motion: reduce) { .lamp { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <p class="lot-name" id="lotName"></p>
+
+  <section class="sign" id="sign" aria-live="polite">
+    <div class="lamps" aria-hidden="true">
+      <div class="lamp lamp-a">空</div>
+      <div class="lamp lamp-f">満</div>
+    </div>
+    <p class="count" id="count">空き状況を確認中です</p>
+  </section>
+
+  <section class="lot" aria-label="区画図">
+    <div class="lot-grid" id="lotGrid"></div>
+    <p class="front">手前</p>
+  </section>
+  <div class="legend"><span class="lg-free">空き</span><span class="lg-taken">契約中</span></div>
+
+  <p class="notice" id="notice"></p>
+  <p class="updated" id="updated"></p>
+
+  <a class="call" id="call" href="#">電話で問い合わせる</a>
+  <a class="map" id="map" href="#" target="_blank" rel="noopener">地図で場所を見る</a>
+</main>
+
+<script>
+  /* ================= CONFIG（ここだけ編集） ================= */
+  const CONFIG = {
+    // Googleスプレッドシート「ウェブに公開」→ CSV で発行したURL
+    csvUrl: "https://docs.google.com/spreadsheets/d/e/XXXXXXXXXXXX/pub?gid=0&single=true&output=csv",
+    lotName: "〇〇駐車場（名古屋市〇〇区）",
+    phone: "052-000-0000",
+    mapUrl: "https://maps.google.com/?q=名古屋市"   // 不要なら ""
+  };
+  /* ========================================================= */
+
+  // 区画配置：左列は奥(8)→手前(1)、右列は奥(9)→手前(16)。1の向かいが16
+  const LEFT  = [8, 7, 6, 5, 4, 3, 2, 1];
+  const RIGHT = [9, 10, 11, 12, 13, 14, 15, 16];
+
+  // CSV URL未設定時のプレビュー用サンプル（15番のみ空き）
+  const SAMPLE = (() => {
+    const d = { "お知らせ": "月極駐車場です。空き区画のご契約はお電話でお問い合わせください。", "最終更新": "（サンプル表示）" };
+    for (let i = 1; i <= 16; i++) d[String(i)] = i === 15 ? "空き" : "契約中";
+    return d;
+  })();
+
+  document.getElementById("lotName").textContent = CONFIG.lotName;
+  document.title = CONFIG.lotName + " 空き状況";
+  const call = document.getElementById("call");
+  call.href = "tel:" + CONFIG.phone.replace(/[^0-9+]/g, "");
+  call.textContent = "電話で問い合わせる（" + CONFIG.phone + "）";
+  const map = document.getElementById("map");
+  if (CONFIG.mapUrl) { map.href = CONFIG.mapUrl; } else { map.remove(); }
+
+  function parseCsv(text) {
+    const rows = []; let row = []; let cell = ""; let q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+        else if (c === '"') { q = false; }
+        else { cell += c; }
+      } else if (c === '"') { q = true; }
+      else if (c === ",") { row.push(cell); cell = ""; }
+      else if (c === "\n" || c === "\r") {
+        if (c === "\r" && text[i + 1] === "\n") i++;
+        row.push(cell); rows.push(row); row = []; cell = "";
+      } else { cell += c; }
+    }
+    if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+    return rows;
+  }
+
+  function slotHtml(no, status, side, isLast) {
+    const free = status === "空き";
+    return '<div class="slot ' + side + (isLast ? " last" : "") + (free ? " free" : " taken") +
+      '" aria-label="' + no + '番 ' + (free ? "空き" : "契約中") + '">' +
+      '<span class="no">' + no + '</span><span class="st">' + (free ? "空き" : "契約中") + "</span></div>";
+  }
+
+  function render(data) {
+    const grid = document.getElementById("lotGrid");
+    let html = "";
+    for (let r = 0; r < 8; r++) {
+      html += slotHtml(LEFT[r], data[String(LEFT[r])], "left", r === 7);
+      if (r === 0) html += '<div class="aisle" aria-hidden="true"></div>';
+      html += slotHtml(RIGHT[r], data[String(RIGHT[r])], "right", r === 7);
+    }
+    grid.innerHTML = html;
+
+    const all = LEFT.concat(RIGHT);
+    const freeNos = all.filter(n => data[String(n)] === "空き").sort((a, b) => a - b);
+    const sign = document.getElementById("sign");
+    const count = document.getElementById("count");
+    if (freeNos.length > 0) {
+      sign.className = "sign state-available";
+      count.innerHTML = "空きあり　残り<strong>" + freeNos.length + "</strong>台" +
+        "<small>空き区画：" + freeNos.map(n => n + "番").join("、") + "（全" + all.length + "台）</small>";
+    } else {
+      sign.className = "sign state-full";
+      count.innerHTML = "ただいま満車です<small>全" + all.length + "台</small>";
+    }
+    document.getElementById("notice").textContent = data["お知らせ"] || "";
+    document.getElementById("updated").textContent = data["最終更新"] ? "最終更新：" + data["最終更新"] : "";
+  }
+
+  async function load() {
+    if (CONFIG.csvUrl.includes("XXXXXXXX")) { render(SAMPLE); return; }
+    try {
+      const res = await fetch(CONFIG.csvUrl + "&t=" + Date.now(), { cache: "no-store" });
+      if (!res.ok) throw new Error(res.status);
+      const data = {};
+      parseCsv(await res.text()).forEach(r => { if (r[0]) data[r[0].trim()] = (r[1] || "").trim(); });
+      render(data);
+    } catch (e) {
+      document.getElementById("sign").className = "sign";
+      document.getElementById("count").textContent = "空き情報を読み込めませんでした。お電話でお問い合わせください。";
+    }
+  }
+  load();
+</script>
+</body>
+</html>
